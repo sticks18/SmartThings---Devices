@@ -56,7 +56,7 @@ def parse(String description) {
     
     if (msg.clusterId == 6) {
     	
-    	def button = (msg.command == 1 ? 1 : 2)
+    	def button = (msg.command == 1 ? 1 : 4)
         def result = createEvent(name: "button", value: "pushed", data: [buttonNumber: button], descriptionText: "$device.displayName button $button was pushed", isStateChange: true)
         log.debug "Parse returned ${result?.descriptionText}"
         return result
