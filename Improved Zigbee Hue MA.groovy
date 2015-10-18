@@ -191,6 +191,7 @@ def parse(String description) {
             else if( descMap.attrId == "0008") {
                 def result = createEvent(name: "colorMode", value: (descMap.value == "02" ? "White" : "Color"))
                 if (device.currentValue("switch") == "on") {
+                	log.debug device.currentValue("switch")
                 	sendEvent(name: "switchColor", value: (descMap.value == "02" ? "White" : device.currentValue("colorName")), displayed: false)
                 }
                 log.debug "Parse returned ${result?.descriptionText}"
