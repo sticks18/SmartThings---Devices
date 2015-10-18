@@ -172,7 +172,7 @@ def parse(String description) {
                 def hueValue = Math.round(convertHexToInt(descMap.value) / 255 * 360)
                 log.debug "Hue value returned is $hueValue"
                 def colorName = getColorName(hueValue)
-    			sendEvent(name: "colorName", value: colorName)
+    		sendEvent(name: "colorName", value: colorName)
                 if (device.currentValue("switch") == "on") { sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false) }
                 sendEvent(name: "hue", value: hueValue, displayed:false)
             }
@@ -184,12 +184,12 @@ def parse(String description) {
             else if( descMap.attrId == "0007") {
                 def tempInMired = convertHexToInt(descMap.value)
             	def tempInKelvin = Math.round(1000000/tempInMired)
-            	def result = createEvent(name: "colorTemperature", value: tempInKelvin)
+            	sendEvent(name: "colorTemperature", value: tempInKelvin)
                 log.debug "Parse returned ${result?.descriptionText}"
             	return result
             }
             else if( descMap.attrId == "0008") {
-                def result = createEvent(name: "colorMode", value: (descMap.value == "02" ? "White" : "Color"))
+                sendEvent(name: "colorMode", value: (descMap.value == "02" ? "White" : "Color"))
                 if (device.currentValue("switch") == "on") {
                 	log.debug device.currentValue("switch")
                 	sendEvent(name: "switchColor", value: (descMap.value == "02" ? "White" : device.currentValue("colorName")), displayed: false)
@@ -206,8 +206,11 @@ def parse(String description) {
     }
     else {
         def name = description?.startsWith("on/off: ") ? "switch" : null
-        def value = name == "switch" ? (description?.endsWith(" 1") ? "on" : "off") : null
-        sendEvent(name: "switchColor", value: (value == "off" ? "off" : device.currentValue("colorName")), displayed: false)
+        if (name == "switch") {
+        	def value = (description?.endsWith(" 1") ? "on" : "off")
+        	sendEvent(name: "switchColor", value: (value == "off" ? "off" : device.currentValue("colorName")), displayed: false)
+        }
+        else { def value = null }
         def result = createEvent(name: name, value: value)
         log.debug "Parse returned ${result?.descriptionText}"
         return result
