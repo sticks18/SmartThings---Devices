@@ -169,10 +169,10 @@ def parse(String description) {
 
         if (descMap.cluster == "0300") {
             if(descMap.attrId == "0000"){  //Hue Attribute
-                def hueValue = Math.round(convertHexToInt(descMap.value) / 255 * 360)
+                def hueValue = Math.round(convertHexToInt(descMap.value) / 255 * 100)
                 log.debug "Hue value returned is $hueValue"
                 def colorName = getColorName(hueValue)
-    		sendEvent(name: "colorName", value: colorName)
+    			sendEvent(name: "colorName", value: colorName)
                 if (device.currentValue("switch") == "on") { sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false) }
                 sendEvent(name: "hue", value: hueValue, displayed:false)
             }
