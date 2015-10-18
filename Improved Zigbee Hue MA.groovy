@@ -86,9 +86,6 @@ metadata {
             	attributeState "Crimson", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#ff003b"
             	attributeState "White", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821"
 			}
-			tileAttribute ("device.colorTemperature", key: "SLIDER_CONTROL") {
-            	attributeState "colorTemperature", action: "color temperature.setColorTemperature"
-            }
             tileAttribute ("device.color", key: "COLOR_CONTROL") {
             	attributeState "color", action: "setAdjustedColor"
             }
@@ -99,49 +96,31 @@ metadata {
         standardTile("refresh", "device.switch", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
 			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
-		controlTile("rgbSelector", "device.color", "color", height: 2, width: 2, inactiveLabel: false) {
-			state "color", action:"setAdjustedColor"
-		}
-		controlTile("levelSliderControl", "device.level", "slider", height: 2, width: 4, inactiveLabel: false) {
+		controlTile("levelSliderControl", "device.level", "slider", height: 1, width: 4, inactiveLabel: false) {
 			state "level", action:"switch level.setLevel"
 		}
-		valueTile("level", "device.level", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
-			state "level", label: 'Level ${currentValue}%'
-		}
-		controlTile("saturationSliderControl", "device.saturation", "slider", height: 1, width: 2, inactiveLabel: false) {
-			state "saturation", action:"color control.setSaturation"
-		}
-		valueTile("saturation", "device.saturation", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
-			state "saturation", label: 'Sat ${currentValue}    '
-		}
-		controlTile("hueSliderControl", "device.hue", "slider", height: 1, width: 2, inactiveLabel: false) {
-			state "hue", action:"color control.setHue"
-		}
-        controlTile("colorTempSliderControl", "device.colorTemperature", "slider", height: 1, width: 2, inactiveLabel: false, range:"(2000..6500)") {
+        controlTile("colorTempSliderControl", "device.colorTemperature", "slider", height: 1, width: 4, inactiveLabel: false, range:"(2000..6500)") {
             state "colorTemperature", action:"color temperature.setColorTemperature"
         }
-        valueTile("colorTemp", "device.colorTemperature", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
+        valueTile("colorTemp", "device.colorTemperature", height: 1, width: 2, inactiveLabel: false, decoration: "flat") {
             state "colorTemperature", label: '${currentValue} K'
         }
-        valueTile("colorName", "device.colorName", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
+        valueTile("colorName", "device.colorName", height: 1, width: 2, inactiveLabel: false, decoration: "flat") {
             state "colorName", label: '${currentValue}'
         }
         valueTile("colorMode", "device.colorMode", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
             state "colorMode", label: '${currentValue}'
         }
-		standardTile("configure", "device.switch", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
-			state "default", label:"", action:"configuration.configure", icon:"st.secondary.configure"
-		}
         
         
 		main(["switch"])
-		details(["switch", "levelSliderControl", "colorName", "colorTemp", "refresh",  "configure"])
+		details(["switch", "levelSliderControl", "colorName", "colorTempSliderControl", "colorTemp", "colorMode", "refresh"])
 	}
 }
 
 // Parse incoming device messages to generate events
 def parse(String description) {
-//log.info "description is $description"
+   // log.info "description is $description"
     
     sendEvent(name: "unreachable", value: 0)
     
@@ -149,7 +128,7 @@ def parse(String description) {
         if(description?.endsWith("0100") ||description?.endsWith("1001") || description?.matches("on/off\\s*:\\s*1"))
         {
             def result = createEvent(name: "switch", value: "on")
-            sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false)
+            sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
             log.debug "Parse returned ${result?.descriptionText}"
             return result
         }
@@ -165,7 +144,7 @@ def parse(String description) {
     }
     else if (description?.startsWith("read attr -")) {
         def descMap = parseDescriptionAsMap(description)
-        log.trace "descMap : $descMap"
+       // log.trace "descMap : $descMap"
 
         if (descMap.cluster == "0300") {
             if(descMap.attrId == "0000"){  //Hue Attribute
@@ -173,7 +152,7 @@ def parse(String description) {
                 log.debug "Hue value returned is $hueValue"
                 def colorName = getColorName(hueValue)
     			sendEvent(name: "colorName", value: colorName)
-                if (device.currentValue("switch") == "on") { sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false) }
+                if (device.currentValue("switch") == "on") { sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false) }
                 sendEvent(name: "hue", value: hueValue, displayed:false)
             }
             else if(descMap.attrId == "0001"){ //Saturation Attribute
@@ -184,18 +163,16 @@ def parse(String description) {
             else if( descMap.attrId == "0007") {
                 def tempInMired = convertHexToInt(descMap.value)
             	def tempInKelvin = Math.round(1000000/tempInMired)
+                log.debug "Color temperature returned is $tempInKelvin"
             	sendEvent(name: "colorTemperature", value: tempInKelvin)
-                log.debug "Parse returned ${result?.descriptionText}"
-            	return result
             }
             else if( descMap.attrId == "0008") {
-                sendEvent(name: "colorMode", value: (descMap.value == "02" ? "White" : "Color"))
+            	def colorModeValue = (descMap.value == "02" ? "White" : "Color")
+                log.debug "Color mode returned $colorModeValue"
+                sendEvent(name: "colorMode", value: colorModeValue)
                 if (device.currentValue("switch") == "on") {
-                	log.debug device.currentValue("switch")
                 	sendEvent(name: "switchColor", value: (descMap.value == "02" ? "White" : device.currentValue("colorName")), displayed: false)
                 }
-                log.debug "Parse returned ${result?.descriptionText}"
-                return result
             }
         }
         else if(descMap.cluster == "0008"){
@@ -252,6 +229,11 @@ def setColorTemperature(value) {
    // log.debug "generic name is : $genericName"
 
     def cmds = []
+    
+    if (device.latestValue("switch") == "off") {
+        cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
+        cmds << "delay 150"
+    }
     sendEvent(name: "colorTemperature", value: value, displayed:false)
     sendEvent(name: "colorMode", value: "White")
     sendEvent(name: "switchColor", value: "White", displayed: false)
@@ -354,7 +336,8 @@ def refresh() {
     "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 1","delay 500",
     "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 0","delay 500",
     "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 7","delay 500",
-    "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 8"
+    "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 8", "delay 500",
+    "st wattr 0x${device.deviceNetworkId} ${endpointId} 8 0x10 0x21 {0015}"
     
     ]
 }
