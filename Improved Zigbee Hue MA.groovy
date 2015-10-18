@@ -120,7 +120,7 @@ metadata {
 
 // Parse incoming device messages to generate events
 def parse(String description) {
-   // log.info "description is $description"
+   log.info "description is $description"
     
     sendEvent(name: "unreachable", value: 0)
     
@@ -134,7 +134,7 @@ def parse(String description) {
         }
         else if(description?.endsWith("0000") || description?.endsWith("1000") || description?.matches("on/off\\s*:\\s*0"))
         {
-            if(!(description?.startsWith("catchall: 0104 0300"))){
+            if(!(description?.startsWith("catchall: 0104 0300") || description?.startsWith("catchall: 0104 0008"))){
                 def result = createEvent(name: "switch", value: "off")
                 sendEvent(name: "switchColor", value: "off", displayed: false)
                 log.debug "Parse returned ${result?.descriptionText}"
@@ -184,8 +184,9 @@ def parse(String description) {
     else {
         def name = description?.startsWith("on/off: ") ? "switch" : null
         if (name == "switch") {
-        	def value = (description?.endsWith(" 1") ? "on" : "off")
-        	sendEvent(name: "switchColor", value: (value == "off" ? "off" : device.currentValue("colorName")), displayed: false)
+            def value = (description?.endsWith(" 1") ? "on" : "off")
+        	log.debug value
+            sendEvent(name: "switchColor", value: (value == "off" ? "off" : device.currentValue("colorName")), displayed: false)
         }
         else { def value = null }
         def result = createEvent(name: name, value: value)
