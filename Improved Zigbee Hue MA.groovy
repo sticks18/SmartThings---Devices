@@ -15,6 +15,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ * 	Update 11/1/2015: Fixed a couple bugs and made unreachable events hidden. Thanks to Ian (mojo_333) for recognizing.
+ * 
  */
 
 metadata {
@@ -23,7 +25,7 @@ metadata {
 		capability "Switch Level"
 		capability "Actuator"
 		capability "Color Control"
-        capability "Color Temperature"
+        	capability "Color Temperature"
 		capability "Switch"
 		capability "Configuration"
 		capability "Polling"
@@ -122,7 +124,7 @@ metadata {
 def parse(String description) {
    log.info "description is $description"
     
-    sendEvent(name: "unreachable", value: 0)
+    sendEvent(name: "unreachable", value: 0, displayed: false)
     
     if (description?.startsWith("catchall:")) {
         if(description?.endsWith("0100") ||description?.endsWith("1001") || description?.matches("on/off\\s*:\\s*1"))
@@ -207,7 +209,7 @@ def on() {
 	// just assume it works for now
 	log.debug "on()"
 	sendEvent(name: "switch", value: "on")
-    sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false)
+    	sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
 	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
 }
 
@@ -215,7 +217,7 @@ def off() {
 	// just assume it works for now
 	log.debug "off()"
 	sendEvent(name: "switch", value: "off")
-    sendEvent(name: "switchColor", value: "off", displayed: false)
+    	sendEvent(name: "switchColor", value: "off", displayed: false)
 	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0 {}"
 }
 
@@ -292,8 +294,9 @@ def setColor(value){
     if (value.level) {
         state.levelValue = value.level
         sendEvent(name: "level", value: value.level)
-        def level = hex(value.level * 255 / 100)
-        cmd << zigbeeSetLevel(level)
+        def level = hex(value.level * 2.55)
+        if(value == 1) { level = hex(1) }
+        cmd << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
     }
     
     if (value.switch == "off") {
@@ -320,10 +323,10 @@ def refresh() {
 
     def unreachable = device.currentValue("unreachable")
     if(unreachable == null) { 
-    	sendEvent(name: 'unreachable', value: 1)
+    	sendEvent(name: 'unreachable', value: 1, displayed: false)
     }
     else { 
-    	sendEvent(name: 'unreachable', value: unreachable + 1)
+    	sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
     }
     if(unreachable > 2) { 
     	sendEvent(name: "switch", value: "off")
@@ -463,10 +466,10 @@ def setLevel(value) {
     def unreachable = device.currentValue("unreachable")
     log.debug unreachable
     if(unreachable == null) { 
-    	sendEvent(name: 'unreachable', value: 1)
+    	sendEvent(name: 'unreachable', value: 1, displayed: false)
     }
     else { 
-    	sendEvent(name: 'unreachable', value: unreachable + 1)
+    	sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
     }
     if(unreachable > 2) { 
     	sendEvent(name: "switch", value: "off")
@@ -488,7 +491,7 @@ def setLevel(value) {
 
 	sendEvent(name: "level", value: value)
 	def level = hex(value * 2.55)
-    if(value == 1) { level = hex(1) }
+    	if(value == 1) { level = hex(1) }
 	cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
 
 	//log.debug cmds
