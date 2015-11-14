@@ -249,6 +249,7 @@ def toggle() {
 	if (device.currentValue("switch") == "on") {
 		sendEvent(name: "switch", value: "off")
 		sendEvent(name: "switchColor", value: "off")
+	}
 	else {
 		sendEvent(name: "switch", value: "on")
 		sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
