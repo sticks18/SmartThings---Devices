@@ -15,17 +15,15 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- * 	Update 11/1/2015: Fixed a couple bugs and made unreachable events hidden. Thanks to Ian (mojo_333) for recognizing.
- * 
  */
 
 metadata {
 	// Automatically generated. Make future change here.
-	definition (name: "Improved Zigbee Hue Bulb MA", namespace: "smartthings", author: "SmartThings") {
+	definition (name: "Improved Zigbee Hue Bulb MA - Test", namespace: "Sticks18", author: "Scott G") {
 		capability "Switch Level"
 		capability "Actuator"
 		capability "Color Control"
-        	capability "Color Temperature"
+        capability "Color Temperature"
 		capability "Switch"
 		capability "Configuration"
 		capability "Polling"
@@ -33,12 +31,23 @@ metadata {
 		capability "Sensor"
        
         command "setAdjustedColor"
+        command "startLoop"
+        command "stopLoop"
+        command "idBlink"
+        command "idBreathe"
+        command "idOkay"
+        command "idWarn"
+        command "idStop"
+        command "toggle"
+        command "timedOn"
         
         // This is a new temporary counter to keep track of no responses
         attribute "unreachable", "number"
         attribute "colorMode", "string"
         attribute "colorName", "string"
         attribute "switchColor", "string"
+        attribute "loopActive", "string"
+        attribute "alert", "string"
 
 		fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,0300,1000", outClusters: "0019"
 	}
@@ -87,6 +96,7 @@ metadata {
             	attributeState "Raspberry", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#ff0061"
             	attributeState "Crimson", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#ff003b"
             	attributeState "White", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821"
+                attributeState "Color Loop", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on"
 			}
             tileAttribute ("device.color", key: "COLOR_CONTROL") {
             	attributeState "color", action: "setAdjustedColor"
@@ -113,10 +123,14 @@ metadata {
         valueTile("colorMode", "device.colorMode", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
             state "colorMode", label: '${currentValue}'
         }
+        standardTile("loop", "device.loopActive", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
+			state "Active", label:'${currentValue}', action: "stopLoop"
+			state "Inactive", label:'${currentValue}', action: "startLoop"
+		}
         
         
 		main(["switch"])
-		details(["switch", "levelSliderControl", "colorName", "colorTempSliderControl", "colorTemp", "colorMode", "refresh"])
+		details(["switch", "levelSliderControl", "colorName", "colorTempSliderControl", "colorTemp", "colorMode", "loop", "refresh"])
 	}
 }
 
@@ -124,7 +138,7 @@ metadata {
 def parse(String description) {
    log.info "description is $description"
     
-    sendEvent(name: "unreachable", value: 0, displayed: false)
+    sendEvent(name: "unreachable", value: 0)
     
     if (description?.startsWith("catchall:")) {
         if(description?.endsWith("0100") ||description?.endsWith("1001") || description?.matches("on/off\\s*:\\s*1"))
@@ -209,7 +223,7 @@ def on() {
 	// just assume it works for now
 	log.debug "on()"
 	sendEvent(name: "switch", value: "on")
-    	sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+    	sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false)
 	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
 }
 
@@ -217,8 +231,83 @@ def off() {
 	// just assume it works for now
 	log.debug "off()"
 	sendEvent(name: "switch", value: "off")
-    	sendEvent(name: "switchColor", value: "off", displayed: false)
+    sendEvent(name: "switchColor", value: "off", displayed: false)
 	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0 {}"
+}
+
+def timedOn(onTime) {
+	
+	def newTime = onTime * 10
+	def finalHex = swapEndianHex(hexF(newTime, 4))
+	sendEvent(name: "switch", value: "on")
+	sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0x42 {00 ${finalHex} 0000}"
+	
+}
+
+def toggle() {
+	if (device.currentValue("switch") == "on") {
+		sendEvent(name: "switch", value: "off")
+		sendEvent(name: "switchColor", value: "off")
+	else {
+		sendEvent(name: "switch", value: "on")
+		sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+	}
+	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 2 {}"
+}
+
+
+
+def idAction(value, action) {
+	sendEvent(name: "alert", value: action)
+	"st cmd 0x${device.deviceNetworkId} ${endpointId} 3 0x40 {${value} 00}"
+}
+
+def idBlink() {
+	idAction("00", "Blink")
+}
+
+def idBreathe() {
+	idAction("01", "Breathe")
+}
+
+def idOkay() {
+	idAction("02", "Okay")
+}
+
+def idWarn() {
+	idAction("03", "Warn")
+}
+
+def idStop() {
+	idAction("ff", "Stop")
+}
+
+def startLoop() {
+	
+	log.debug "activating color loop"
+	sendEvent(name: "switchColor", value: "Color Loop", displayed: false)
+    	sendEvent(name: "loopActive", value: "Active")
+    
+    "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {07 01 01 0400 0000}"
+	
+}
+
+def stopLoop() {
+	
+	log.debug "deactivating color loop"
+	def cmds = [
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {01 00 00 0000 0000}", "delay 200",
+        "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 0", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 1", "delay 200",
+        "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 7","delay 200",
+        "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 8", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} ${endpointId} 8 0"
+        ]
+	sendEvent(name: "loopActive", value: "Inactive")
+	
+	cmds
+	
 }
 
 def setColorTemperature(value) {
@@ -294,9 +383,8 @@ def setColor(value){
     if (value.level) {
         state.levelValue = value.level
         sendEvent(name: "level", value: value.level)
-        def level = hex(value.level * 2.55)
-        if(value == 1) { level = hex(1) }
-        cmd << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
+        def level = hex(value.level * 255 / 100)
+        cmd << zigbeeSetLevel(level)
     }
     
     if (value.switch == "off") {
@@ -323,10 +411,10 @@ def refresh() {
 
     def unreachable = device.currentValue("unreachable")
     if(unreachable == null) { 
-    	sendEvent(name: 'unreachable', value: 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: 1)
     }
     else { 
-    	sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: unreachable + 1)
     }
     if(unreachable > 2) { 
     	sendEvent(name: "switch", value: "off")
@@ -355,7 +443,10 @@ def configure(){
 	log.debug "Initiating configuration reporting and binding"
     
     [  
-    	"zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 6 {${device.zigbeeId}} {}", "delay 1000",
+    	zigbee.configSetup("6","0","0x10","0","60","{}"), "delay 1000",
+        zigbee.configSetup("8","0","0x20","5","600","{10}"), "delay 1500",
+        
+        "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 6 {${device.zigbeeId}} {}", "delay 1000",
 		"zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 8 {${device.zigbeeId}} {}", "delay 1000",
         "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 0x0300 {${device.zigbeeId}} {}"
 	]
@@ -466,10 +557,10 @@ def setLevel(value) {
     def unreachable = device.currentValue("unreachable")
     log.debug unreachable
     if(unreachable == null) { 
-    	sendEvent(name: 'unreachable', value: 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: 1)
     }
     else { 
-    	sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: unreachable + 1)
     }
     if(unreachable > 2) { 
     	sendEvent(name: "switch", value: "off")
@@ -491,7 +582,7 @@ def setLevel(value) {
 
 	sendEvent(name: "level", value: value)
 	def level = hex(value * 2.55)
-    	if(value == 1) { level = hex(1) }
+    if(value == 1) { level = hex(1) }
 	cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
 
 	//log.debug cmds
