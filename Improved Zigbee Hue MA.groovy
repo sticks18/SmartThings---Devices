@@ -33,11 +33,7 @@ metadata {
         command "setAdjustedColor"
         command "startLoop"
         command "stopLoop"
-        command "idBlink"
-        command "idBreathe"
-        command "idOkay"
-        command "idWarn"
-        command "idStop"
+        command "alert"
         command "toggle"
         command "timedOn"
         
@@ -259,30 +255,37 @@ def toggle() {
 
 
 
-def idAction(value, action) {
-	sendEvent(name: "alert", value: action)
-	"st cmd 0x${device.deviceNetworkId} ${endpointId} 3 0x40 {${value} 00}"
+def alert(action) {
+	def value = "00"
+	def valid = true
+	switch(action) {
+		case "Blink":
+			value = "00"
+			break
+		case "Breathe":
+			value = "01"
+			break
+		case "Okay":
+			value = "02"
+			break
+		case "Warn":
+			value = "03"
+			break
+		case "Stop":
+			value = "ff"
+			break
+		default:
+			valid = false
+			break
+	}
+	if (valid) {
+		log.debug "Alert: ${action}, Value: ${value}"
+		sendEvent(name: "alert", value: action)
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 3 0x40 {${value} 00}"
+	}
+	else { log.debug "Invalid action" }
 }
 
-def idBlink() {
-	idAction("00", "Blink")
-}
-
-def idBreathe() {
-	idAction("01", "Breathe")
-}
-
-def idOkay() {
-	idAction("02", "Okay")
-}
-
-def idWarn() {
-	idAction("03", "Warn")
-}
-
-def idStop() {
-	idAction("ff", "Stop")
-}
 
 def startLoop() {
 	
