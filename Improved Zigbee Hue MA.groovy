@@ -44,6 +44,8 @@ metadata {
         attribute "switchColor", "string"
         attribute "loopActive", "string"
         attribute "alert", "string"
+        attribute "loopTime", "number"
+        attribute "loopDirection", "string"
 
 		fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,0300,1000", outClusters: "0019"
 	}
@@ -287,13 +289,41 @@ def alert(action) {
 }
 
 
-def startLoop() {
+def startLoop(Map params) {
+	// direction either increments or decrements the hue value: "Up" will increment, "Down" will decrement
+	def direction = (device.currentValue("loopDirection") == "Down" ? "00" : "01")
+	if (params.direction != null) {
+		direction = (params.direction == "Down" ? "00" : "01")
+		sendEvent(name: "loopDirection", value: params.direction )
+	}
+
 	
-	log.debug "activating color loop"
+	// time parameter is the time in seconds for a full loop
+	def cycle = (device.currentValue("loopTime") != null ? device.currentValue("loopTime") : 2)
+	if (params.time != null) {
+		cycle = params.time
+		sendEvent(name:"loopTime", value: cycle)
+	}
+	def finTime = swapEndianHex(hexF(cycle, 4))
+	
 	sendEvent(name: "switchColor", value: "Color Loop", displayed: false)
     	sendEvent(name: "loopActive", value: "Active")
-    
-    "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {07 01 01 0400 0000}"
+    	
+	if (params.hue == null) {  
+		
+		// start hue was not specified, so start loop from current hue updating direction and time
+		log.debug "activating color loop from current hue"
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {07 02 ${direction} ${finTime} 0000}"
+	}
+	else {
+		
+		// start hue was specified, so convert to enhanced hue and start loop from there
+		def sHue = Math.min(Math.round(params.hue * 255 / 100), 255)
+		finHue = swapEndianHex(hexF(sHue, 4))
+		log.debug "activating color loop from specified hue"
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {0F 01 ${direction} ${finTime} ${sHue}}"
+		
+	}
 	
 }
 
