@@ -35,7 +35,6 @@ metadata {
         command "stopLoop"
         command "alert"
         command "toggle"
-        command "timedOn"
         
         // This is a new temporary counter to keep track of no responses
         attribute "unreachable", "number"
@@ -44,8 +43,6 @@ metadata {
         attribute "switchColor", "string"
         attribute "loopActive", "string"
         attribute "alert", "string"
-        attribute "loopTime", "number"
-        attribute "loopDirection", "string"
 
 		fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,0300,1000", outClusters: "0019"
 	}
@@ -217,12 +214,21 @@ def parseDescriptionAsMap(description) {
     }
 }
 
-def on() {
+def on(onTime = null) {
 	// just assume it works for now
 	log.debug "on()"
 	sendEvent(name: "switch", value: "on")
-    	sendEvent(name: "switchColor", value: device.currentValue("colorName"), displayed: false)
-	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
+    sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+    
+    if (onTime) {
+    	def newTime = onTime * 10
+		def finalHex = swapEndianHex(hexF(newTime, 4))
+        "st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0x42 {00 ${finalHex} 0000}"
+        runIn(onTime, refresh())
+    }
+    else {
+    	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
+    }
 }
 
 def off() {
@@ -231,16 +237,6 @@ def off() {
 	sendEvent(name: "switch", value: "off")
     sendEvent(name: "switchColor", value: "off", displayed: false)
 	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0 {}"
-}
-
-def timedOn(onTime) {
-	
-	def newTime = onTime * 10
-	def finalHex = swapEndianHex(hexF(newTime, 4))
-	sendEvent(name: "switch", value: "on")
-	sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
-	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0x42 {00 ${finalHex} 0000}"
-	
 }
 
 def toggle() {
@@ -269,9 +265,6 @@ def alert(action) {
 			break
 		case "Okay":
 			value = "02"
-			break
-		case "Warn":
-			value = "03"
 			break
 		case "Stop":
 			value = "ff"
@@ -307,7 +300,7 @@ def startLoop(Map params) {
 	def finTime = swapEndianHex(hexF(cycle, 4))
 	
 	sendEvent(name: "switchColor", value: "Color Loop", displayed: false)
-    	sendEvent(name: "loopActive", value: "Active")
+    sendEvent(name: "loopActive", value: "Active")
     	
 	if (params.hue == null) {  
 		
@@ -344,11 +337,13 @@ def stopLoop() {
 	
 }
 
-def setColorTemperature(value) {
+def setColorTemperature(value, duration = 32) {
     if(value<101){
         value = (value*38) + 2700		//Calculation of mapping 0-100 to 2700-6500
     }
-
+	
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
     def tempInMired = Math.round(1000000/value)
     def finalHex = swapEndianHex(hexF(tempInMired, 4))
    // def genericName = getGenericName(value)
@@ -365,30 +360,35 @@ def setColorTemperature(value) {
     sendEvent(name: "switchColor", value: "White", displayed: false)
    // sendEvent(name: "colorName", value: genericName)
 
-    cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} 2000}"
+    cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} ${transitionTime}}"
 
     cmds
 }
 
-def setHue(value) {
+def setHue(value, duration = 32) {
 	def max = 0xfe
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
   // log.trace "setHue($value)"
 	sendEvent(name: "hue", value: value)
 	def scaledValue = Math.round(value * max / 100.0)
-	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x00 {${hex(scaledValue)} 00 2000}"
+	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x00 {${hex(scaledValue)} 00 ${transitionTime}}"
 	//log.info cmd
 	cmd
 }
 
-def setAdjustedColor(value) {
+def setAdjustedColor(value, duration = 32) {
    // log.debug "setAdjustedColor: ${value}"
 	def adjusted = value + [:]
 	adjusted.level = null // needed because color picker always sends 100
-	setColor(adjusted)
+	setColor(adjusted, duration)
 }
 
-def setColor(value){
+def setColor(value, duration = 32){
     log.trace "setColor($value)"
+    
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
     def max = 0xfe
 	if (value.hue == 0 && value.saturation == 0) { setColorTemperature(3500) }
     else if (value.red == 255 && value.blue == 185 && value.green == 255) { setColorTemperature(2700) }
@@ -412,7 +412,7 @@ def setColor(value){
         cmd << "delay 150"
     }
 
-    cmd << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x06 {${scaledHueValue} ${scaledSatValue} 2000}"
+    cmd << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x06 {${scaledHueValue} ${scaledSatValue} ${transitionTime}}"
     
     if (value.level) {
         state.levelValue = value.level
@@ -430,13 +430,14 @@ def setColor(value){
     }
 }
 
-def setSaturation(value) {
-
+def setSaturation(value, duration = 32) {
+	
+    def transitionTime = swapEndianHex(hexF(duration,4))
 	def max = 0xfe
    // log.trace "setSaturation($value)"
 	sendEvent(name: "saturation", value: value)
 	def scaledValue = Math.round(value * max / 100.0)
-	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x03 {${hex(scaledValue)} 2000}"
+	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x03 {${hex(scaledValue)} ${transitionTime}}"
 	//log.info cmd
 	cmd
 }
@@ -585,8 +586,11 @@ private getColorName(hueValue){
     colorName
 }
 
-def setLevel(value) {
+// adding duration to enable transition time adjustments
+def setLevel(value, duration = 21) {
 	log.trace "setLevel($value)"
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
     
     def unreachable = device.currentValue("unreachable")
     log.debug unreachable
@@ -617,7 +621,7 @@ def setLevel(value) {
 	sendEvent(name: "level", value: value)
 	def level = hex(value * 2.55)
     if(value == 1) { level = hex(1) }
-	cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
+	cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} ${transitionTime}}"
 
 	//log.debug cmds
 	cmds
