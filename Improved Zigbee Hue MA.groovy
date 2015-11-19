@@ -222,9 +222,9 @@ def on(onTime = null) {
     
     if (onTime) {
     	def newTime = onTime * 10
-		def finalHex = swapEndianHex(hexF(newTime, 4))
+	def finalHex = swapEndianHex(hexF(newTime, 4))
+        runIn(onTime, refresh)
         "st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0x42 {00 ${finalHex} 0000}"
-        runIn(onTime, refresh())
     }
     else {
     	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
