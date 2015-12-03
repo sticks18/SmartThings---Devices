@@ -20,6 +20,10 @@ metadata {
 	definition (name: "Color Temp Virtual Dimmer", namespace: "sticks18", author: "Scott Gibson") {
 		capability "Actuator"
         capability "Switch Level"
+        
+        command "updateTemp"
+        
+        attribute "kelvin", "number"
 	
 	}
 
@@ -29,13 +33,27 @@ metadata {
 
 	// UI tile definitions
 	tiles {
-    	valueTile("level", "device.level", inactiveLabel: false, decoration: "flat") {
+    	valueTile("kelvin", "device.kelvin") {
+			state("device.kelvin", label:'${currentValue}k',
+				backgroundColors:[
+					[value: 2900, color: "#FFA757"],
+					[value: 3300, color: "#FFB371"],
+					[value: 3700, color: "#FFC392"],
+					[value: 4100, color: "#FFCEA6"],
+					[value: 4500, color: "#FFD7B7"],
+					[value: 4900, color: "#FFE0C7"],
+					[value: 5300, color: "#FFE8D5"],
+                    [value: 6600, color: "#FFEFE1"]
+				]
+			)
+		}
+        valueTile("level", "device.level", inactiveLabel: false, decoration: "flat") {
 			state "level", label: 'Level ${currentValue}%'
 		}
         controlTile("levelSliderControl", "device.level", "slider", height: 1, width: 2, inactiveLabel: false) {
 			state "level", action:"switch level.setLevel"
 		}
-		main "level"
+		main "kelvin"
 		details "levelSliderControl", "level"
 	}
 }
@@ -46,4 +64,8 @@ def parse(String description) {
 def setLevel(value) {
 	sendEvent(name: "level", value: value)
     parent.setLevel(this, value)
+}
+
+def updatedTemp(value) {
+	sendEvent(name: "kelvin", value: value)
 }
