@@ -331,7 +331,7 @@ def startLoop(Map params) {
 	log.trace cycle
     	if (params?.time != null) {
 		cycle = params.time
-		sendEvent(name:"loopTime", value: cycle)
+		if (cycle >= 1 && cycle <= 60) {sendEvent(name:"loopTime", value: cycle)}
 	}
 	log.trace cycle
     	def finTime = swapEndianHex(hexF(cycle, 4))
