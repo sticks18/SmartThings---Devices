@@ -460,8 +460,8 @@ def setColor(value, duration = 32){
     if (value.level) {
         state.levelValue = value.level
         sendEvent(name: "level", value: value.level)
-        def level = hex(value.level * 255 / 100)
-        cmd << zigbeeSetLevel(level)
+        def level = hex(value.level * 254 / 100)
+        cmd <<  "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
     }
     
     if (value.switch == "off") {
