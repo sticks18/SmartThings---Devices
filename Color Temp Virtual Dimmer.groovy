@@ -20,6 +20,7 @@ metadata {
 	definition (name: "Color Temp Virtual Dimmer", namespace: "sticks18", author: "Scott Gibson") {
 		capability "Actuator"
         capability "Switch Level"
+        capability "Switch"
         
         command "updateTemp"
         
@@ -54,7 +55,7 @@ metadata {
 			state "level", action:"switch level.setLevel"
 		}
 		main "kelvin"
-		details "levelSliderControl", "level"
+		details "levelSliderControl", "level", "kelvin"
 	}
 }
 
@@ -62,10 +63,17 @@ def parse(String description) {
 }
 
 def setLevel(value) {
-	sendEvent(name: "level", value: value)
+    log.debug "Setting level to ${value}"
+    sendEvent(name: "level", value: value)
     parent.setLevel(this, value)
 }
 
-def updatedTemp(value) {
+def on() {
+}
+
+def off() {
+}
+
+def updateTemp(value) {
 	sendEvent(name: "kelvin", value: value)
 }
