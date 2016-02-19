@@ -19,7 +19,7 @@
 
 metadata {
 	// Automatically generated. Make future change here.
-	definition (name: "Dresden FLS-PP", namespace: "Sticks18", author: "Scott G") {
+	definition (name: "Dresden FLS-PP", namespace: "sticks18", author: "Scott G") {
 		capability "Switch Level"
 		capability "Actuator"
 		capability "Color Control"
