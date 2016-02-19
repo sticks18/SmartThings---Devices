@@ -1,1 +1,1 @@
-Placing a text placeholder folder as I try to integrate directly with ST.
+Repo for SmartThings device handlers. Directory structure configured to work with direct IDE integration directly into SmartThings.
