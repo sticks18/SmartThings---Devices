@@ -15,17 +15,15 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- * 	Update 11/1/2015: Fixed a couple bugs and made unreachable events hidden. Thanks to Ian (mojo_333) for recognizing.
- * 
  */
 
 metadata {
 	// Automatically generated. Make future change here.
-	definition (name: "Improved Zigbee Hue Bulb MA", namespace: "smartthings", author: "SmartThings") {
+	definition (name: "Improved Zigbee Hue Bulb MA - Test", namespace: "Sticks18", author: "Scott G") {
 		capability "Switch Level"
 		capability "Actuator"
 		capability "Color Control"
-        	capability "Color Temperature"
+        capability "Color Temperature"
 		capability "Switch"
 		capability "Configuration"
 		capability "Polling"
@@ -33,12 +31,23 @@ metadata {
 		capability "Sensor"
        
         command "setAdjustedColor"
+        command "startLoop"
+        command "stopLoop"
+        command "setLoopTime"
+        command "setDirection"
+        
+        command "alert"
+        command "toggle"
         
         // This is a new temporary counter to keep track of no responses
         attribute "unreachable", "number"
         attribute "colorMode", "string"
         attribute "colorName", "string"
         attribute "switchColor", "string"
+        attribute "loopActive", "string"
+        attribute "loopDirection", "string"
+        attribute "loopTime", "number"
+        attribute "alert", "string"
 
 		fingerprint profileId: "C05E", inClusters: "0000,0003,0004,0005,0006,0008,0300,1000", outClusters: "0019"
 	}
@@ -87,6 +96,7 @@ metadata {
             	attributeState "Raspberry", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#ff0061"
             	attributeState "Crimson", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#ff003b"
             	attributeState "White", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821"
+                attributeState "Color Loop", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#79b821"
 			}
             tileAttribute ("device.color", key: "COLOR_CONTROL") {
             	attributeState "color", action: "setAdjustedColor"
@@ -113,10 +123,22 @@ metadata {
         valueTile("colorMode", "device.colorMode", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
             state "colorMode", label: '${currentValue}'
         }
+        standardTile("loop", "device.loopActive", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
+			state "Active", label:'${currentValue}', action: "stopLoop", backgroundColor: "#79b821", nextState: "stoppingLoop"
+            state "startingLoop", label: "Starting Loop", action: "stopLoop", backgroundColor: "#79b821", nextState: "stoppingLoop"
+			state "Inactive", label:'${currentValue}', action: "startLoop", backgroundColor: "#ffffff", nextState: "startingLoop"
+            state "stoppingLoop", label: "Stopping Loop", action: "startLoop", backgroundColor: "#ffffff", nextState: "startingLoop"
+		}
+        controlTile("loopTimeControl", "device.loopTime", "slider", height: 2, width: 4, range: "(1..60)", inactiveLabel: false) {
+        	state "loopTime", action: "setLoopTime"
+        }
+        standardTile("loopDir", "device.loopDirection", height: 2, width: 2, inactiveLabel: false, decoration: "flat") {
+        	state "default", label: '${currentValue}', action: "setDirection"
+        }
         
         
 		main(["switch"])
-		details(["switch", "levelSliderControl", "colorName", "colorTempSliderControl", "colorTemp", "colorMode", "refresh"])
+		details(["switch", "levelSliderControl", "colorName", "colorTempSliderControl", "colorTemp", "colorMode", "loop", "refresh", "loopTimeControl", "loopDir"])
 	}
 }
 
@@ -124,8 +146,10 @@ metadata {
 def parse(String description) {
    log.info "description is $description"
     
-    sendEvent(name: "unreachable", value: 0, displayed: false)
-    
+    sendEvent(name: "unreachable", value: 0)
+    if (device.currentValue("loopActive") == "Active") { 
+    }
+    else {
     if (description?.startsWith("catchall:")) {
         if(description?.endsWith("0100") ||description?.endsWith("1001") || description?.matches("on/off\\s*:\\s*1"))
         {
@@ -195,7 +219,7 @@ def parse(String description) {
         log.debug "Parse returned ${result?.descriptionText}"
         return result
     }
-
+	}
 }
 
 def parseDescriptionAsMap(description) {
@@ -205,27 +229,164 @@ def parseDescriptionAsMap(description) {
     }
 }
 
-def on() {
+def on(onTime = null) {
 	// just assume it works for now
 	log.debug "on()"
 	sendEvent(name: "switch", value: "on")
-    	sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
-	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
+    sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+    
+    if (onTime) {
+    	def newTime = onTime * 10
+		def finalHex = swapEndianHex(hexF(newTime, 4))
+        runIn(onTime, refresh)
+        "st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0x42 {00 ${finalHex} 0000}"
+    }
+    else {
+    	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
+    }
 }
 
 def off() {
 	// just assume it works for now
 	log.debug "off()"
-	sendEvent(name: "switch", value: "off")
-    	sendEvent(name: "switchColor", value: "off", displayed: false)
+	sendEvent(name: "loopActive", value: "Inactive")
+    sendEvent(name: "switch", value: "off")
+    sendEvent(name: "switchColor", value: "off", displayed: false)
 	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 0 {}"
 }
 
-def setColorTemperature(value) {
+def toggle() {
+	if (device.currentValue("switch") == "on") {
+		sendEvent(name: "switch", value: "off")
+		sendEvent(name: "switchColor", value: "off")
+	}
+	else {
+		sendEvent(name: "switch", value: "on")
+		sendEvent(name: "switchColor", value: ( device.currentValue("colorMode") == "White" ? "White" : device.currentValue("colorName")), displayed: false)
+	}
+	"st cmd 0x${device.deviceNetworkId} ${endpointId} 6 2 {}"
+}
+
+
+
+def alert(action) {
+	def value = "00"
+	def valid = true
+	switch(action) {
+		case "Blink":
+			value = "00"
+			break
+		case "Breathe":
+			value = "01"
+			break
+		case "Okay":
+			value = "02"
+			break
+		case "Stop":
+			value = "ff"
+			break
+		default:
+			valid = false
+			break
+	}
+	if (valid) {
+		log.debug "Alert: ${action}, Value: ${value}"
+		sendEvent(name: "alert", value: action)
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 3 0x40 {${value} 00}"
+	}
+	else { log.debug "Invalid action" }
+}
+
+def setDirection() {
+	def direction = (device.currentValue("loopDirection") == "Down" ? "Up" : "Down")
+    log.trace direction
+	sendEvent(name: "loopDirection", value: direction)
+	if (device.currentValue("loopActive") == "Active") {
+		def dirHex = (direction == "Down" ? "00" : "01")
+        log.trace dirHex
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {02 01 ${dirHex} 0000 0000}"
+	}
+}
+
+def setLoopTime(value) {
+	sendEvent(name:"loopTime", value: value)
+	if (device.currentValue("loopActive") == "Active") {
+		def finTime = swapEndianHex(hexF(value, 4))
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {04 01 00 ${finTime} 0000}"
+	}
+}
+
+def startLoop(Map params) {
+	// direction either increments or decrements the hue value: "Up" will increment, "Down" will decrement
+	def direction = (device.currentValue("loopDirection") != null ? (device.currentValue("loopDirection") == "Down" ? "00" : "01") : "00")
+	log.trace direction
+    	if (params?.direction != null) {
+		direction = (params.direction == "Down" ? "00" : "01")
+		sendEvent(name: "loopDirection", value: params.direction )
+	}
+	log.trace direction
+	
+	// time parameter is the time in seconds for a full loop
+	def cycle = (device.currentValue("loopTime") != null ? device.currentValue("loopTime") : 2)
+	log.trace cycle
+    	if (params?.time != null) {
+		cycle = params.time
+		if (cycle >= 1 && cycle <= 60) {sendEvent(name:"loopTime", value: cycle)}
+	}
+	log.trace cycle
+    	def finTime = swapEndianHex(hexF(cycle, 4))
+	log.trace finTime
+	
+	def cmds = []
+	cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 6 1 {}"
+    cmds << "delay 200"
+    	
+	sendEvent(name: "switchColor", value: "Color Loop", displayed: false)
+    sendEvent(name: "loopActive", value: "Active")
+    	
+	if (params?.hue != null) {  
+		
+		// start hue was specified, so convert to enhanced hue and start loop from there
+		def sHue = Math.min(Math.round(params.hue * 255 / 100), 255)
+		finHue = swapEndianHex(hexF(sHue, 4))
+		log.debug "activating color loop from specified hue"
+		cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {0F 01 ${direction} ${finTime} ${sHue}}"
+        
+	}
+	else {
+		       
+        // start hue was not specified, so start loop from current hue updating direction and time
+		log.debug "activating color loop from current hue"
+		cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {07 02 ${direction} ${finTime} 0000}"
+		
+	}
+	cmds
+}
+
+def stopLoop() {
+	
+	log.debug "deactivating color loop"
+	def cmds = [
+		"st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x44 {01 00 00 0000 0000}", "delay 200",
+        "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 0", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 1", "delay 200",
+        "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 7","delay 200",
+        "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 8", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} ${endpointId} 8 0"
+        ]
+	sendEvent(name: "loopActive", value: "Inactive")
+	
+	cmds
+	
+}
+
+def setColorTemperature(value, duration = 32) {
     if(value<101){
         value = (value*38) + 2700		//Calculation of mapping 0-100 to 2700-6500
     }
-
+	
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
     def tempInMired = Math.round(1000000/value)
     def finalHex = swapEndianHex(hexF(tempInMired, 4))
    // def genericName = getGenericName(value)
@@ -242,30 +403,35 @@ def setColorTemperature(value) {
     sendEvent(name: "switchColor", value: "White", displayed: false)
    // sendEvent(name: "colorName", value: genericName)
 
-    cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} 2000}"
+    cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} ${transitionTime}}"
 
     cmds
 }
 
-def setHue(value) {
+def setHue(value, duration = 32) {
 	def max = 0xfe
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
   // log.trace "setHue($value)"
 	sendEvent(name: "hue", value: value)
 	def scaledValue = Math.round(value * max / 100.0)
-	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x00 {${hex(scaledValue)} 00 2000}"
+	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x00 {${hex(scaledValue)} 00 ${transitionTime}}"
 	//log.info cmd
 	cmd
 }
 
-def setAdjustedColor(value) {
+def setAdjustedColor(value, duration = 32) {
    // log.debug "setAdjustedColor: ${value}"
 	def adjusted = value + [:]
 	adjusted.level = null // needed because color picker always sends 100
-	setColor(adjusted)
+	setColor(adjusted, duration)
 }
 
-def setColor(value){
+def setColor(value, duration = 32){
     log.trace "setColor($value)"
+    
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
     def max = 0xfe
 	if (value.hue == 0 && value.saturation == 0) { setColorTemperature(3500) }
     else if (value.red == 255 && value.blue == 185 && value.green == 255) { setColorTemperature(2700) }
@@ -289,14 +455,13 @@ def setColor(value){
         cmd << "delay 150"
     }
 
-    cmd << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x06 {${scaledHueValue} ${scaledSatValue} 2000}"
+    cmd << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x06 {${scaledHueValue} ${scaledSatValue} ${transitionTime}}"
     
     if (value.level) {
         state.levelValue = value.level
         sendEvent(name: "level", value: value.level)
-        def level = hex(value.level * 2.55)
-        if(value == 1) { level = hex(1) }
-        cmd << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
+        def level = hex(value.level * 254 / 100)
+        cmd <<  "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
     }
     
     if (value.switch == "off") {
@@ -308,13 +473,14 @@ def setColor(value){
     }
 }
 
-def setSaturation(value) {
-
+def setSaturation(value, duration = 32) {
+	
+    def transitionTime = swapEndianHex(hexF(duration,4))
 	def max = 0xfe
    // log.trace "setSaturation($value)"
 	sendEvent(name: "saturation", value: value)
 	def scaledValue = Math.round(value * max / 100.0)
-	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x03 {${hex(scaledValue)} 2000}"
+	def cmd = "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x300 0x03 {${hex(scaledValue)} ${transitionTime}}"
 	//log.info cmd
 	cmd
 }
@@ -323,10 +489,10 @@ def refresh() {
 
     def unreachable = device.currentValue("unreachable")
     if(unreachable == null) { 
-    	sendEvent(name: 'unreachable', value: 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: 1)
     }
     else { 
-    	sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: unreachable + 1)
     }
     if(unreachable > 2) { 
     	sendEvent(name: "switch", value: "off")
@@ -355,7 +521,10 @@ def configure(){
 	log.debug "Initiating configuration reporting and binding"
     
     [  
-    	"zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 6 {${device.zigbeeId}} {}", "delay 1000",
+    	zigbee.configSetup("6","0","0x10","0","60","{}"), "delay 1000",
+        zigbee.configSetup("8","0","0x20","5","600","{10}"), "delay 1500",
+        
+        "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 6 {${device.zigbeeId}} {}", "delay 1000",
 		"zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 8 {${device.zigbeeId}} {}", "delay 1000",
         "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 0x0300 {${device.zigbeeId}} {}"
 	]
@@ -460,16 +629,19 @@ private getColorName(hueValue){
     colorName
 }
 
-def setLevel(value) {
+// adding duration to enable transition time adjustments
+def setLevel(value, duration = 21) {
 	log.trace "setLevel($value)"
+    def transitionTime = swapEndianHex(hexF(duration,4))
+    
     
     def unreachable = device.currentValue("unreachable")
     log.debug unreachable
     if(unreachable == null) { 
-    	sendEvent(name: 'unreachable', value: 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: 1)
     }
     else { 
-    	sendEvent(name: 'unreachable', value: unreachable + 1, displayed: false)
+    	sendEvent(name: 'unreachable', value: unreachable + 1)
     }
     if(unreachable > 2) { 
     	sendEvent(name: "switch", value: "off")
@@ -491,8 +663,8 @@ def setLevel(value) {
 
 	sendEvent(name: "level", value: value)
 	def level = hex(value * 2.55)
-    	if(value == 1) { level = hex(1) }
-	cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} 1500}"
+    if(value == 1) { level = hex(1) }
+	cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 8 4 {${level} ${transitionTime}}"
 
 	//log.debug cmds
 	cmds
