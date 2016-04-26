@@ -209,12 +209,13 @@ def parse(String description) {
     }
     else {
         def name = description?.startsWith("on/off: ") ? "switch" : null
+        def value = null
         if (name == "switch") {
-            def value = (description?.endsWith(" 1") ? "on" : "off")
+            value = (description?.endsWith(" 1") ? "on" : "off")
         	log.debug value
             sendEvent(name: "switchColor", value: (value == "off" ? "off" : device.currentValue("colorName")), displayed: false)
         }
-        else { def value = null }
+        else { value = null }
         def result = createEvent(name: name, value: value)
         log.debug "Parse returned ${result?.descriptionText}"
         return result
