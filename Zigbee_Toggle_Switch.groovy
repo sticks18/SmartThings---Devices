@@ -24,7 +24,18 @@ metadata {
 		capability "Refresh"
 		capability "Actuator"
 		capability "Sensor"
-
+		
+		command "OneOn"
+		command "OneOff"
+		command "TwoOn"
+		command "TwoOff"
+		command "ThreeOn"
+		command "ThreeOff"
+		
+		attribute "OneSwitch", "string"
+		attribute "TwoSwitch", "string"
+		attribute "ThreeSwitch", "string"
+		
 		fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0B05,0702", outClusters: "0003, 000A,0019", manufacturer: "Jasco Products", model: "45853"
 		fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0B05,0702", outClusters: "000A,0019", manufacturer: "Jasco Products", model: "45856"
 	}
@@ -89,8 +100,8 @@ def parse(String description) {
 }
 
 // Commands to device
-def zigbeeCommand(cluster, attribute){
-	"st cmd 0x${device.deviceNetworkId} ${endpointId} ${cluster} ${attribute} {}"
+def zigbeeCommand(endp, cluster, attribute){
+	"st cmd 0x${device.deviceNetworkId} ${endp} ${cluster} ${attribute} {}"
 }
 
 def off() {
@@ -99,6 +110,22 @@ def off() {
 
 def on() {
 	zigbeeCommand("6", "2")
+}
+
+def OneOn() {
+	zigbeeCommand("0x10","6", "2")
+}
+
+def OneOff() {
+	zigbeeCommand("0x10","6", "2")
+}
+
+def TwoOn() {
+	zigbeeCommand("0x11","6", "2")
+}
+
+def ThreeOn() {
+	zigbeeCommand("0x12","6", "2")
 }
 
 def refresh() {
