@@ -156,18 +156,21 @@ def celsius = (getTemperatureScale() == "C") ? degreesInteger : (fahrenheitToCel
 def heat() {
 log.debug "heat"
 sendEvent("name":"thermostatMode", "value":"heat")
+sendEvent("name":"switch", "value":"on")
 "st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {04}"
 }
 
 def on() {
 log.debug "on"
-sendEvent("name":"thermostatMode", "value":"on")
+sendEvent("name":"thermostatMode", "value":"auto")
+sendEvent("name":"switch", "value":"on")
 "st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {01}"
 }
 
 def off() {
 log.debug "off"
 sendEvent("name":"thermostatMode", "value":"off")
+sendEvent("name":"switch", "value":"off")
 "st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {00}"
 }
 
