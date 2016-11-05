@@ -81,8 +81,11 @@ tiles {
  		state "turningOn", label:'${currentValue}', action:"switchOff", icon:"st.switches.light.on", backgroundColor:"#79b821", nextState:"turningOff"
 		state "turningOff", label:'${currentValue}', action:"switchOn", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"turningOn"
 	}
+	valueTile ("power", "device.power", inactiveLabel: false, decoration: "flat") {
+                state "power", label:'${currentValue} W', backgroundColor: "#ffffff"
+        }
 main "temperature"
-details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "switchClust"])
+details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "switchClust", "power"])
 
 }
 }
