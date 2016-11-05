@@ -21,9 +21,16 @@ capability "Actuator"
 capability "Temperature Measurement"
 capability "Thermostat"
 capability "Configuration"
+capability "Power Meter"
 capability "Refresh"
 capability "Sensor"
 capability "Switch"
+	
+command "switchOn"
+command "switchOff"
+
+attribute "switchStatus", "string"
+	
 fingerprint profileId: "0104", inClusters: "0300,0000,0003,0006,0201,0204,0702,0B05", outClusters: "0003,0019,0020"
 
 }
@@ -68,8 +75,14 @@ tiles {
 	standardTile("refresh", "device.temperature", inactiveLabel: false, decoration: "flat") {
 	state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 	}
+	standardTile("switchClust", "device.switchStatus", inactiveLabel: false, decoration: "flat") {
+		state "off", label:'${currentValue}', action:"switchOn", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
+ 		state "on", label:'${currentValue}', action:"switchOff", icon:"st.switches.switch.on", backgroundColor:"#79b821"
+ 		state "turningOn", label:'${currentValue}', action:"switchOff", icon:"st.switches.light.on", backgroundColor:"#79b821", nextState:"turningOff"
+		state "turningOff", label:'${currentValue}', action:"switchOn", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"turningOn"
+	}
 main "temperature"
-details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh"])
+details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "switchClust"])
 
 }
 }
@@ -79,29 +92,41 @@ details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refre
 def parse(String description) {
   log.debug "Parse description $description"
   def map = [:]
-  if (description?.startsWith("read attr -")) {
-    def descMap = parseDescriptionAsMap(description)
-    log.debug "Desc Map: $descMap"
-    if (descMap.cluster == "0201" && descMap.attrId == "0000") {
-      log.debug "TEMP"
-      map.name = "temperature"
-      map.value = getTemperature(descMap.value)
-      map.unit = temperatureScale
-    } else if (descMap.cluster == "0201" && descMap.attrId == "0012") {
-      log.debug "HEATING SETPOINT"
-      map.name = "heatingSetpoint"
-      map.value = getTemperature(descMap.value)
-      map.unit = temperatureScale
-    } else if (descMap.cluster == "0201" && descMap.attrId == "001c") {
-      log.debug "MODE"
-      map.name = "switch"
-      map.value = (descMap.value == "00" ? "off" : "on")
-    } 
-  } else if (description?.startsWith("catchall:")) {
-    def msg = zigbee.parse(description)
-    log.trace msg
-    log.trace "data: $msg.data"
-  }
+  def event = zigbee.getEvent(description)
+    if (event) {
+        log.info event
+        if (event.name == "power") {
+            if (device.getDataValue("manufacturer") != "OSRAM") {       //OSRAM devices do not reliably update power
+                event.value = (event.value as Integer) / 10             //TODO: The divisor value needs to be set as part of configuration
+                sendEvent(event)
+            }
+        }
+        else {
+            sendEvent(event)
+        }
+    } else if (description?.startsWith("read attr -")) {
+    	def descMap = parseDescriptionAsMap(description)
+    	log.debug "Desc Map: $descMap"
+    	if (descMap.cluster == "0201" && descMap.attrId == "0000") {
+      		log.debug "TEMP"
+      		map.name = "temperature"
+      		map.value = getTemperature(descMap.value)
+      		map.unit = temperatureScale
+    	} else if (descMap.cluster == "0201" && descMap.attrId == "0012") {
+      		log.debug "HEATING SETPOINT"
+      		map.name = "heatingSetpoint"
+      		map.value = getTemperature(descMap.value)
+      		map.unit = temperatureScale
+    	} else if (descMap.cluster == "0201" && descMap.attrId == "001c") {
+      		log.debug "MODE"
+      		map.name = "switch"
+      		map.value = (descMap.value == "00" ? "off" : "on")
+    	} 
+    } else if (description?.startsWith("catchall:")) {
+    	def msg = zigbee.parse(description)
+    	log.trace msg
+    	log.trace "data: $msg.data"
+    }
 
   def result = null
   if (map) {
@@ -118,62 +143,85 @@ def parseDescriptionAsMap(description) {
   }
 }
 
-def refresh()
-{
-log.debug "refresh called"
-[
-"st rattr 0x${device.deviceNetworkId} 1 0x201 0", "delay 200",
-"st rattr 0x${device.deviceNetworkId} 1 0x201 0x11", "delay 200",
-"st rattr 0x${device.deviceNetworkId} 1 0x201 0x12", "delay 200",
-"st rattr 0x${device.deviceNetworkId} 1 0x201 0x1C", "delay 200"
-]
+def refresh() {
+	log.debug "refresh called"
+	[
+		"st rattr 0x${device.deviceNetworkId} 1 0x201 0", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x11", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x12", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x1C", "delay 200",
+		zigbee.onOffRefresh() + zigbee.simpleMeteringPowerRefresh() + zigbee.electricMeasurementPowerRefresh()
+	]
+}
+
+def switchOn() {
+	// just assume it works for now
+	log.debug "on()"
+	sendEvent(name: "switchStatus", value: "on")
+	"st cmd 0x${device.deviceNetworkId} 1 6 1 {}"
+}
+
+def switchOff() {
+	// just assume it works for now
+	log.debug "off()"
+	sendEvent(name: "switchStatus", value: "off")
+	"st cmd 0x${device.deviceNetworkId} 1 6 0 {}"
 }
 
 def getTemperature(value) {
-if (value != null) {
-def celsius = Integer.parseInt(value, 16) / 100
-if (getTemperatureScale() == "C") {
-return celsius
-} else {
-return Math.round(celsiusToFahrenheit(celsius))
-}
-}
+	if (value != null) {
+		def celsius = Integer.parseInt(value, 16) / 100
+		if (getTemperatureScale() == "C") {
+			return celsius
+		} else {
+			return Math.round(celsiusToFahrenheit(celsius))
+		}
+	}
 }
 
 def setHeatingSetpoint(degrees) {
-if (degrees != null) {
-def temperatureScale = getTemperatureScale()
-def degreesInteger = Math.round(degrees)
-log.debug "setHeatingSetpoint({$degreesInteger} ${temperatureScale})"
-sendEvent("name": "heatingSetpoint", "value": degreesInteger, "unit": temperatureScale)
+	if (degrees != null) {
+		def temperatureScale = getTemperatureScale()
+		def degreesInteger = Math.round(degrees)
+		log.debug "setHeatingSetpoint({$degreesInteger} ${temperatureScale})"
+		sendEvent("name": "heatingSetpoint", "value": degreesInteger, "unit": temperatureScale)
 
-def celsius = (getTemperatureScale() == "C") ? degreesInteger : (fahrenheitToCelsius(degreesInteger) as Double).round(2)
-"st wattr 0x${device.deviceNetworkId} 1 0x201 0x12 0x29 {" + hex(celsius * 100) + "}"
+		def celsius = (getTemperatureScale() == "C") ? degreesInteger : (fahrenheitToCelsius(degreesInteger) as Double).round(2)
+		"st wattr 0x${device.deviceNetworkId} 1 0x201 0x12 0x29 {" + hex(celsius * 100) + "}"
 
-}
+	}
 }
 
 def heat() {
-log.debug "heat"
-sendEvent("name":"thermostatMode", "value":"heat")
-sendEvent("name":"switch", "value":"on")
-"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {04}"
+	log.debug "heat"
+	sendEvent("name":"thermostatMode", "value":"heat")
+	sendEvent("name":"switch", "value":"on")
+	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {04}"
 }
 
 def on() {
-log.debug "on"
-sendEvent("name":"thermostatMode", "value":"auto")
-sendEvent("name":"switch", "value":"on")
-"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {01}"
+	log.debug "on"
+	sendEvent("name":"thermostatMode", "value":"auto")
+	sendEvent("name":"switch", "value":"on")
+	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {01}"
 }
 
 def off() {
-log.debug "off"
-sendEvent("name":"thermostatMode", "value":"off")
-sendEvent("name":"switch", "value":"off")
-"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {00}"
+	log.debug "off"
+	sendEvent("name":"thermostatMode", "value":"off")
+	sendEvent("name":"switch", "value":"off")
+	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {00}"
 }
 
 private hex(value) {
-new BigInteger(Math.round(value).toString()).toString(16)
+	new BigInteger(Math.round(value).toString()).toString(16)
+}
+
+def configure() {
+
+	log.debug "binding to Thermostat cluster"
+	[
+		"zdo bind 0x${device.deviceNetworkId} 1 1 0x201 {${device.zigbeeId}} {}", "delay 200",
+		zigbee.onOffConfig()
+	]
 }
