@@ -150,10 +150,9 @@ def refresh() {
 	log.debug "refresh called"
 	[
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0", "delay 200",
-		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x11", "delay 200",
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x12", "delay 200",
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x1C", "delay 200",
-		zigbee.onOffRefresh() + zigbee.simpleMeteringPowerRefresh() + zigbee.electricMeasurementPowerRefresh()
+		zigbee.onOffRefresh() + zigbee.simpleMeteringPowerRefresh()
 	]
 }
 
@@ -225,6 +224,6 @@ def configure() {
 	log.debug "binding to Thermostat cluster"
 	[
 		"zdo bind 0x${device.deviceNetworkId} 1 1 0x201 {${device.zigbeeId}} {}", "delay 200",
-		zigbee.onOffConfig()
+		zigbee.onOffConfig() + zigbee.simpleMeteringPowerConfig()
 	]
 }
