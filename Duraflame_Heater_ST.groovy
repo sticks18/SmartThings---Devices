@@ -85,7 +85,7 @@ tiles {
                 state "power", label:'${currentValue} W', backgroundColor: "#ffffff"
         }
 main "temperature"
-details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "switchClust", "power"])
+details(["temperature", "switchClust", "heatSliderControl", "heatingSetpoint", "refresh", "switch", "power"])
 
 }
 }
@@ -122,7 +122,7 @@ def parse(String description) {
       		map.unit = temperatureScale
     	} else if (descMap.cluster == "0201" && descMap.attrId == "001c") {
       		log.debug "MODE"
-      		map.name = "switch"
+      		map.name = "switchStatus"
       		map.value = (descMap.value == "00" ? "off" : "on")
     	} 
     } else if (description?.startsWith("catchall:")) {
@@ -157,17 +157,17 @@ def refresh() {
 	]
 }
 
-def switchOn() {
+def on() {
 	// just assume it works for now
 	log.debug "on()"
-	sendEvent(name: "switchStatus", value: "on")
+	sendEvent(name: "switch", value: "on")
 	"st cmd 0x${device.deviceNetworkId} 1 6 1 {}"
 }
 
-def switchOff() {
+def off() {
 	// just assume it works for now
 	log.debug "off()"
-	sendEvent(name: "switchStatus", value: "off")
+	sendEvent(name: "switch", value: "off")
 	"st cmd 0x${device.deviceNetworkId} 1 6 0 {}"
 }
 
@@ -202,17 +202,17 @@ def heat() {
 	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {04}"
 }
 
-def on() {
+def switchOn() {
 	log.debug "on"
 	sendEvent("name":"thermostatMode", "value":"auto")
-	sendEvent("name":"switch", "value":"on")
+	sendEvent("name":"switchStatus", "value":"on")
 	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {01}"
 }
 
-def off() {
+def switchOff() {
 	log.debug "off"
 	sendEvent("name":"thermostatMode", "value":"off")
-	sendEvent("name":"switch", "value":"off")
+	sendEvent("name":"switchStatus", "value":"off")
 	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {00}"
 }
 
