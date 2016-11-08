@@ -152,6 +152,9 @@ def refresh() {
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0", "delay 200",
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x12", "delay 200",
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x1C", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x23", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x24", "delay 200",
+		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x25", "delay 200",
 		zigbee.onOffRefresh() + zigbee.simpleMeteringPowerRefresh()
 	]
 }
@@ -223,7 +226,11 @@ def configure() {
 
 	log.debug "binding to Thermostat cluster"
 	[
-		"zdo bind 0x${device.deviceNetworkId} 1 1 0x201 {${device.zigbeeId}} {}", "delay 200",
+		"zdo bind 0x${device.deviceNetworkId} 1 1 0x201 {${device.zigbeeId}} {}", "delay 500",
+		"zcl global send-me-a-report 0x201 0x0000 0x29 20 300 {19 00}",  // report temperature changes over 0.2C 
+			"send 0x${device.deviceNetworkId} 1 ${endpointId}", "delay 500", 
+		"zcl global send-me-a-report 0x201 0x001C 0x30 10 305 { }",  // mode 
+			"send 0x${device.deviceNetworkId} 1 ${endpointId}","delay 500", 
 		zigbee.onOffConfig() + zigbee.simpleMeteringPowerConfig()
 	]
 }
