@@ -26,15 +26,9 @@ capability "Refresh"
 capability "Sensor"
 capability "Switch"
 	
-command "timerOn"
-command "timerOff"
-command "setTimer"
-	
 command "ecoOn"
 command "ecoOff"
 
-attribute "timer", "string"
-attribute "timerDuration", "string"
 attribute "ecoMode", "string"
 	
 fingerprint profileId: "0104", inClusters: "0300,0000,0003,0006,0201,0204,0702,0B05", outClusters: "0003,0019,0020"
@@ -87,20 +81,11 @@ tiles {
  		state "turningOn", label:'${currentValue}', action:"ecoOff", icon:"st.switches.light.on", backgroundColor:"#79b821", nextState:"turningOff"
 		state "turningOff", label:'${currentValue}', action:"ecoOn", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"turningOn"
 	}
-	standardTile("timerSwitch", "device.timer", inactiveLabel: false, decoration: "flat") {
-		state "off", label:'${currentValue}', action:"timerOn", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
- 		state "on", label:'${currentValue}', action:"timerOff", icon:"st.switches.switch.on", backgroundColor:"#79b821"
- 		state "turningOn", label:'${currentValue}', action:"timerOff", icon:"st.switches.light.on", backgroundColor:"#79b821", nextState:"turningOff"
-		state "turningOff", label:'${currentValue}', action:"timerOn", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"turningOn"
-	}
-	controlTile("timerSlider", "device.timerDuration", "slider", height: 1, width: 3, inactiveLabel: false, range: "(0..600)") {
-		state "setTimer", action:"setTimer", backgroundColor:"#d04e00"
-	}
 	valueTile ("power", "device.power", inactiveLabel: false, decoration: "flat") {
                 state "power", label:'${currentValue} W', backgroundColor: "#ffffff"
         }
 main "temperature"
-details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "timerSwitch", "timerSlider", "ecoMode", "power"])
+details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "ecoMode", "power"])
 
 }
 }
@@ -131,7 +116,6 @@ def parse(String description) {
       		log.debug "MODE"
       		map.name = "switch"
       		map.value = (descMap.value == "00" ? "off" : "on")
-		if (map.value == "off") { sendEvent("name":"timer", "value":"off") }
 	} else if (descMap.cluster == "0702") {
 		log.debug "Power"
 		map.name = "power"
@@ -165,28 +149,8 @@ def refresh() {
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x12", "delay 200",
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x1C", "delay 200",
 		"st rattr 0x${device.deviceNetworkId} 1 0x201 0x25", "delay 200",
-		zigbee.onOffRefresh() + zigbee.simpleMeteringPowerRefresh()
+		zigbee.simpleMeteringPowerRefresh()
 	]
-}
-
-def timerOn() {
-	// just assume it works for now
-	log.debug "timer on"
-	sendEvent(name: "switch", value: "on")
-	sendEvent(name: "timer", value: "on")
-	
-	def newTime = (device.currentValue("timerDuration") != null ? device.currentValue("timerDuration") : 0) * 10
-	def finalHex = swapEndianHex(zigbee.convertToHexString(newTime, 4))
-        zigbee.command(0x0006, 0x42, "00", finalHex, "0000") + "st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {01}"
-	
-}
-
-def timerOff() {
-	// just assume it works for now
-	log.debug "timer off"
-	sendEvent(name: "switch", value: "off")
-	sendEvent(name: "timer", value: "off")
-	"st cmd 0x${device.deviceNetworkId} 1 6 0 {}" + "st wattr 0x${device.deviceNetworkId} 1 0x201 0x1C 0x30 {00}"
 }
 
 def ecoOn() {
@@ -286,6 +250,6 @@ def configure() {
 			"send 0x${device.deviceNetworkId} 1 1","delay 500",
 		"zcl global send-me-a-report 0x201 0x0012 0x29 10 320 {32 00}", // cooling setpoint delta: 0.5C (0x3200 in little endian)
 			"send 0x${device.deviceNetworkId} 1 1","delay 500",
-		zigbee.onOffConfig() + zigbee.simpleMeteringPowerConfig()
+		zigbee.simpleMeteringPowerConfig()
 	]
 }
