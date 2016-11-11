@@ -131,7 +131,7 @@ def parse(String description) {
       		log.debug "MODE"
       		map.name = "switch"
       		map.value = (descMap.value == "00" ? "off" : "on")
-		(map.value == "off" ? sendEvent("name":"timer", "value":"off"))
+		if (map.value == "off") { sendEvent("name":"timer", "value":"off") }
 	} else if (descMap.cluster == "0702") {
 		log.debug "Power"
 		map.name = "power"
