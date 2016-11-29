@@ -253,3 +253,7 @@ def configure() {
 		zigbee.simpleMeteringPowerConfig()
 	]
 }
+
+def updated() {
+	configure()
+}
