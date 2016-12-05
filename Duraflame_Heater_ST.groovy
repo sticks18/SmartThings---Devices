@@ -25,6 +25,7 @@ capability "Power Meter"
 capability "Refresh"
 capability "Sensor"
 capability "Switch"
+capability "Polling"
 	
 command "ecoOn"
 command "ecoOff"
@@ -140,6 +141,10 @@ def parseDescriptionAsMap(description) {
   def nameAndValue = param.split(":")
   map += [(nameAndValue[0].trim()):nameAndValue[1].trim()]
   }
+}
+
+def poll() {
+	refresh()
 }
 
 def refresh() {
