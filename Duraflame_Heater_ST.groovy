@@ -77,16 +77,13 @@ tiles {
 	state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 	}
 	standardTile("ecoMode", "device.ecoMode", inactiveLabel: false, decoration: "flat") {
-		state "off", label:'${currentValue}', action:"ecoOn", icon:"st.switches.switch.off", backgroundColor:"#ffffff"
- 		state "on", label:'${currentValue}', action:"ecoOff", icon:"st.switches.switch.on", backgroundColor:"#79b821"
- 		state "turningOn", label:'${currentValue}', action:"ecoOff", icon:"st.switches.light.on", backgroundColor:"#79b821", nextState:"turningOff"
-		state "turningOff", label:'${currentValue}', action:"ecoOn", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"turningOn"
+		state "Eco off", label:'${currentValue}', action:"ecoOn", icon:"st.Outdoor.outdoor19", backgroundColor:"#ffffff"
+ 		state "Eco on", label:'${currentValue}', action:"ecoOff", icon:"st.Outdoor.outdoor19", backgroundColor:"#79b821"
+ 		state "turningOn", label:'${currentValue}', action:"ecoOff", icon:"st.Outdoor.outdoor19", backgroundColor:"#79b821", nextState:"turningOff"
+		state "turningOff", label:'${currentValue}', action:"ecoOn", icon:"st.Outdoor.outdoor19", backgroundColor:"#ffffff", nextState:"turningOn"
 	}
-	valueTile ("power", "device.power", inactiveLabel: false, decoration: "flat") {
-                state "power", label:'${currentValue} W', backgroundColor: "#ffffff"
-        }
 main "temperature"
-details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "ecoMode", "power"])
+details(["temperature", "switch", "heatSliderControl", "heatingSetpoint", "refresh", "ecoMode"])
 
 }
 }
@@ -112,7 +109,7 @@ def parse(String description) {
     	} else if (descMap.cluster == "0201" && descMap.attrId == "0025") {
       		log.debug "EcoMode"
       		map.name = "ecoMode"
-      		map.value = (descMap.value == "04" ? "on" : "off")
+      		map.value = (descMap.value == "04" ? "Eco on" : "Eco off")
     	} else if (descMap.cluster == "0201" && descMap.attrId == "001c") {
       		log.debug "MODE"
       		map.name = "switch"
@@ -160,13 +157,13 @@ def refresh() {
 
 def ecoOn() {
 	log.debug "ecoMode on"
-	sendEvent(name: "ecoMode", value: "on")
+	sendEvent(name: "ecoMode", value: "Eco on")
 	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x25 0x18 {04}"
 }
 
 def ecoOff() {
 	log.debug "ecoMode off"
-	sendEvent(name: "ecoMode", value: "off")
+	sendEvent(name: "ecoMode", value: "Eco off")
 	"st wattr 0x${device.deviceNetworkId} 1 0x201 0x25 0x18 {00}"
 }
 
