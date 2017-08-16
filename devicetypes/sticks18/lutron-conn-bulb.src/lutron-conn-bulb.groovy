@@ -1,4 +1,4 @@
-/**
+s**
  *  
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -25,7 +25,7 @@ Capabilities:
 */
 
 metadata {
-	definition (name: "Lutron Connected Bulb Remote", namespace: "Sticks18", author: "Scott G") {
+	definition (name: "Lutron Connected Bulb Remote", namespace: "sticks18", author: "Scott G") {
 		capability "Actuator"
 		capability "Button"
 		capability "Configuration"
