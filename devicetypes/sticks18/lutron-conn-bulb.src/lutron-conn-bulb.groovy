@@ -1,4 +1,4 @@
-s**
+ *
  *  
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -25,7 +25,7 @@ Capabilities:
 */
 
 metadata {
-	definition (name: "Lutron Connected Bulb Remote", namespace: "sticks18", author: "Scott G") {
+	definition (name: "Lutron Conn Bulb", namespace: "sticks18", author: "Scott G") {
 		capability "Actuator"
 		capability "Button"
 		capability "Configuration"
@@ -64,7 +64,6 @@ metadata {
 		details(["button", "group"])
 	}
 }
-
 // Parse incoming device messages to generate events
 def parse(String description) {
     log.trace description
